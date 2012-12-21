@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require "reverse-tunnel"
+
+ReverseTunnel::CLI.new(ARGV).run
