@@ -2,13 +2,13 @@ module ReverseTunnel
   class Message
 
     def self.type
-      name.split("::").last.downcase.to_sym
+      name.split("::").last.gsub(/^([A-Z])/) {$1.downcase}.gsub(/([A-Z])/) { "_#{$1.downcase}" }.to_sym
     end
     def type
       self.class.type
     end
 
-    @@types = [:open, :data]
+    @@types = [:open_tunnel, :open_session, :data]
     def self.types
       @@types
     end
@@ -32,7 +32,7 @@ module ReverseTunnel
 
     def self.create(type)
       type = types.at(type) if Fixnum === type
-      const_get(type.capitalize).new
+      const_get(type.to_s.gsub(/(^|_)(.)/) { $2.capitalize }).new
     end
 
     class Unpacker
@@ -86,7 +86,7 @@ module ReverseTunnel
       end
     end
 
-    class Open < Message
+    class OpenSession < Message
       attr_accessor :session_id
 
       def initialize(session_id = nil)
@@ -101,6 +101,22 @@ module ReverseTunnel
         self.session_id = payload.first
       end
       
+    end
+
+    class OpenTunnel < Message
+      attr_accessor :token
+
+      def initialize(token = nil)
+        self.token = token
+      end
+
+      def payload
+        [token]
+      end
+
+      def load(payload)
+        self.token = payload.first
+      end
     end
 
   end

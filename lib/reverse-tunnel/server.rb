@@ -1,12 +1,40 @@
 module ReverseTunnel
   class Server
     class Tunnel
+      attr_accessor :token, :local_port
+
+      def initialize(token, local_port)
+        @token, @local_port = token, local_port
+      end
+
       attr_accessor :connection
+
+      def connection=(connection)
+        @connection = connection
+
+        if connection
+          open 
+        else
+          close
+        end
+      end
+
+      attr_accessor :local_server
+
+      def close
+        EventMachine.stop_server local_server
+      end
+
+      def open
+        puts "Listen on #{local_port} for #{token}"
+        local_host = "0.0.0.0"
+        self.local_server = EventMachine.start_server local_host, local_port, LocalConnection, self
+      end
 
       def open_session(session_id)
         if connection
           puts "Send open session #{session_id}"
-          connection.send_data Message::Open.new(session_id).pack
+          connection.send_data Message::OpenSession.new(session_id).pack
         end
       end
 
@@ -45,7 +73,7 @@ module ReverseTunnel
 
       def post_init
         puts "New tunnel connection"
-        tunnel.connection = self
+        # TODO add timeout if tunnel isn't opened
       end
 
       def message_unpacker
@@ -56,17 +84,30 @@ module ReverseTunnel
         message_unpacker.feed data
 
         message_unpacker.each do |message|
-          tunnel.receive_data message.session_id, message.data
+          if message.data?
+            tunnel.receive_data message.session_id, message.data
+          elsif message.open_tunnel?
+            open_tunnel message.token
+          end
         end
       end
 
-      def tunnel
-        server.tunnels.first
+      attr_accessor :tunnel
+
+      def open_tunnel(token)
+        self.tunnel = server.tunnels.find { |t| t.token == token }
+        if tunnel
+          puts "Open tunnel #{token}"
+          tunnel.connection = self
+        else
+          puts "Refuse tunnel connection #{token}"
+          close_connection
+        end
       end
 
       def unbind
         puts "Close tunnel connection"
-        tunnel.connection = nil
+        tunnel.connection = nil if tunnel
       end
     end
 
@@ -106,15 +147,12 @@ module ReverseTunnel
     end
 
     def start
-      tunnel = Tunnel.new
+      tunnel = Tunnel.new("6B833D3F561369156820B4240C7C2657", 10000)
       tunnels << tunnel
 
       EventMachine.run do
         public_host, public_port = "0.0.0.0", 4893
         EventMachine.start_server public_host, public_port, TunnelConnection, self
-
-        local_host, local_port = "0.0.0.0", 10000
-        EventMachine.start_server local_host, local_port, LocalConnection, tunnel
       end
     end
   end

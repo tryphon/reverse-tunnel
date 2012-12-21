@@ -1,10 +1,21 @@
 module ReverseTunnel
   class Client
     class Tunnel
+
+      attr_accessor :token, :local_port
+
+      def initialize(token, local_port)
+        @token, @local_port = token, local_port
+      end
+
       attr_accessor :connection
 
+      def open
+        connection.send_data Message::OpenTunnel.new(token).pack
+      end
+
       def open_session(session_id)
-        local_host, local_port = "localhost", 22
+        local_host = "localhost"
         EventMachine.connect local_host, local_port, LocalConnection, self, session_id
       end
 
@@ -79,6 +90,7 @@ module ReverseTunnel
       def post_init
         puts "New tunnel connection"
         tunnel.connection = self
+        tunnel.open
       end
 
       def message_unpacker
@@ -94,7 +106,7 @@ module ReverseTunnel
 
           if message.data?
             tunnel.receive_data message.session_id, message.data
-          elsif message.open?
+          elsif message.open_session?
             tunnel.open_session message.session_id
           end
         end
@@ -138,11 +150,20 @@ module ReverseTunnel
 
     def start
       EventMachine.run do
-        tunnel = Tunnel.new 
-
         tunnel_host, tunnel_port = "localhost", 4893
         EventMachine.connect tunnel_host, tunnel_port, TunnelConnection, tunnel
       end
     end
+
+    def tunnel
+      @tunnel ||= Tunnel.new(token, local_port)
+    end
+
+    attr_accessor :token, :local_port
+
+    def initialize(token, local_port = 22)
+      @token, @local_port = token, local_port
+    end
+
   end
 end

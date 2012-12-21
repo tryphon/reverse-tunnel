@@ -19,8 +19,8 @@ describe Message::Data do
   end
 end
 
-describe Message::Open do
-  its(:type) { should == :open }
+describe Message::OpenSession do
+  its(:type) { should == :open_session }
   its(:type_id) { should == 0 }
 
   it "should have the same session_id after pack/unpack" do

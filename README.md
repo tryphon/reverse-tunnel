@@ -54,13 +54,12 @@ Or install it yourself as:
 
 ### Messages
 
-* OPEN(1):tunnel_token
-* OPENED(2)
-* REFUSED(3):message
-* PING(4)
-* PONG(5)
-* DATA(6):session_id:data
-* CLOSE(6):session_id
+* OPEN_TUNNEL:tunnel_token
+* PING
+* PONG
+* OPEN_SESSION:session_id
+* DATA:session_id:data
+* CLOSE_SESSION:session_id
 
 ## Contributing
 

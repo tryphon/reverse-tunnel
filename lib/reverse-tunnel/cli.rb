@@ -12,8 +12,11 @@ module ReverseTunnel
     end
 
     def run
-      klass = (mode == "server" ? Server : Client)
-      klass.new.start
+      if mode == "server"
+        Server.new.start
+      else
+        Client.new(*arguments).start
+      end
     end
   end
 end
