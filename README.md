@@ -25,6 +25,35 @@ Or install it yourself as:
     reverse-tunnel rt://console.tryphon.eu:4893/6B833D3F561369156820B4240C7C2657/22
     reverse-tunnel cnQ6Ly9jb25zb2xlLnRyeXBob24uZXU6NDg5My82QjgzM0QzRjU2MTM2OTE1NjgyMEI0MjQwQzdDMjY1Ny8yMg==
 
+## API
+
+Create a new tunnel :
+
+    $ curl -X POST -d '{"token":"156820B4240C7C26576B833D3F561369","local_port":10001}' http://localhost:5000/tunnels.json
+    {
+        "token": "156820B4240C7C26576B833D3F561369",
+        "local_port": 10001
+    }
+
+Retrieve current tunnels :
+
+    $ curl http://localhost:5000/tunnels.json
+    [
+        {
+            "token": "6B833D3F561369156820B4240C7C2657",
+            "local_port": 10000,
+        },
+        {
+            "token": "156820B4240C7C26576B833D3F561369",
+            "local_port": 10001,
+            "connection": {
+                "peer": "127.0.0.1:42782",
+                "created_at": "2012-12-22 17:29:55 +0100"
+            }
+        }
+    ]
+
+
 ## Protocol
 
 ### Create tunnel

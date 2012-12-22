@@ -1,5 +1,68 @@
+require 'evma_httpserver'
+require 'json'
+
 module ReverseTunnel
   class Server
+
+    class ApiServer < EM::Connection
+      include EM::HttpServer
+
+      attr_accessor :server
+
+      def initialize(server)
+        @server = server
+      end
+      
+      def post_init
+        super
+        no_environment_strings
+      end
+
+      def process_http_request
+        # the http request details are available via the following instance variables:
+        #   @http_protocol
+        #   @http_request_method
+        #   @http_cookie
+        #   @http_if_none_match
+        #   @http_content_type
+        #   @http_path_info
+        #   @http_request_uri
+        #   @http_query_string
+        #   @http_post_content
+        #   @http_headers
+
+        puts "Process http request #{@http_request_uri}"
+
+        if @http_request_uri =~ %r{^/tunnels(.json)?$}
+          if @http_request_method == "GET"
+            response = EM::DelegatedHttpResponse.new(self)
+            response.status = 200
+            response.content_type 'application/json'
+            response.content = server.tunnels.to_json
+            response.send_response
+          elsif @http_request_method == "POST"
+            params = JSON.parse(@http_post_content)
+            tunnel = Tunnel.new(params["token"], params["local_port"])
+
+            puts "Create tunnel #{tunnel.inspect}"
+            server.tunnels << tunnel
+
+            response = EM::DelegatedHttpResponse.new(self)
+            response.status = 200
+            response.content_type 'application/json'
+            response.content = tunnel.to_json
+            response.send_response
+          end
+        else 
+          response = EM::DelegatedHttpResponse.new(self)
+          response.status = 404
+          response.send_response
+        end
+      end
+
+    end
+
+
     class Tunnel
       attr_accessor :token, :local_port
 
@@ -62,10 +125,16 @@ module ReverseTunnel
         @next_session_id += 1
       end
 
+      def to_json(*args)
+        { :token => token, :local_port => local_port }.tap do |attributes|
+          attributes[:connection] = connection.to_json if connection
+        end.to_json(*args)
+      end
+
     end
 
     class TunnelConnection < EventMachine::Connection
-      attr_accessor :server
+      attr_accessor :server, :created_at
 
       def initialize(server)
         @server = server
@@ -73,6 +142,7 @@ module ReverseTunnel
 
       def post_init
         puts "New tunnel connection"
+        self.created_at = Time.now
         # TODO add timeout if tunnel isn't opened
       end
 
@@ -109,6 +179,19 @@ module ReverseTunnel
         puts "Close tunnel connection"
         tunnel.connection = nil if tunnel
       end
+
+      def peer
+        @peer ||= 
+          begin
+            port, ip = Socket.unpack_sockaddr_in(get_peername)
+            "#{ip}:#{port}"
+          end
+      end
+
+      def to_json(*args)
+        { :peer => peer, :created_at => created_at }
+      end
+
     end
 
     class LocalConnection < EventMachine::Connection
@@ -153,6 +236,9 @@ module ReverseTunnel
       EventMachine.run do
         public_host, public_port = "0.0.0.0", 4893
         EventMachine.start_server public_host, public_port, TunnelConnection, self
+
+        api_host, api_port = "0.0.0.0", 5000
+        EventMachine.start_server api_host, api_port, ApiServer, self
       end
     end
   end
