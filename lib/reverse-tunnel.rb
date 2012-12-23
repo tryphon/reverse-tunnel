@@ -1,6 +1,16 @@
 require "reverse-tunnel/version"
 
+require "logger"
+
 module ReverseTunnel
+
+  @@logger = Logger.new($stderr)
+  def self.logger
+    @@logger
+  end
+  def self.logger=(logger)
+    @@logger = logger
+  end
 
 end
 

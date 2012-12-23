@@ -31,7 +31,7 @@ module ReverseTunnel
         #   @http_post_content
         #   @http_headers
 
-        puts "Process http request #{@http_request_uri}"
+        ReverseTunnel.logger.debug "Process http request #{@http_request_uri}"
 
         if @http_request_uri =~ %r{^/tunnels(.json)?$}
           if @http_request_method == "GET"
@@ -44,7 +44,7 @@ module ReverseTunnel
             params = JSON.parse(@http_post_content)
             tunnel = Tunnel.new(params["token"], params["local_port"])
 
-            puts "Create tunnel #{tunnel.inspect}"
+            ReverseTunnel.logger.debug "Create tunnel #{tunnel.inspect}"
             server.tunnels << tunnel
 
             response = EM::DelegatedHttpResponse.new(self)
@@ -89,21 +89,21 @@ module ReverseTunnel
       end
 
       def open
-        puts "Listen on #{local_port} for #{token}"
+        ReverseTunnel.logger.info "Listen on #{local_port} for #{token}"
         local_host = "0.0.0.0"
         self.local_server = EventMachine.start_server local_host, local_port, LocalConnection, self
       end
 
       def open_session(session_id)
         if connection
-          puts "Send open session #{session_id}"
+          ReverseTunnel.logger.debug "Send open session #{session_id}"
           connection.send_data Message::OpenSession.new(session_id).pack
         end
       end
 
       def send_data(session_id, data)
         if connection
-          puts "Send data to local connection #{session_id}"
+          ReverseTunnel.logger.debug "Send data to local connection #{session_id}"
           connection.send_data Message::Data.new(session_id,data).pack
         end
       end
@@ -115,7 +115,7 @@ module ReverseTunnel
       def receive_data(session_id, data)
         local_connection = local_connections.find { |c| c.session_id == session_id }
         if local_connection
-          puts "Send data for local connection #{session_id}"
+          ReverseTunnel.logger.debug "Send data for local connection #{session_id}"
           local_connection.send_data data 
         end
       end
@@ -141,7 +141,7 @@ module ReverseTunnel
       end
 
       def post_init
-        puts "New tunnel connection"
+        ReverseTunnel.logger.info "New tunnel connection from #{peer}"
         self.created_at = Time.now
         # TODO add timeout if tunnel isn't opened
       end
@@ -167,16 +167,16 @@ module ReverseTunnel
       def open_tunnel(token)
         self.tunnel = server.tunnels.find { |t| t.token == token }
         if tunnel
-          puts "Open tunnel #{token}"
+          ReverseTunnel.logger.info "Open tunnel #{token}"
           tunnel.connection = self
         else
-          puts "Refuse tunnel connection #{token}"
+          ReverseTunnel.logger.warn "Refuse tunnel connection #{token}"
           close_connection
         end
       end
 
       def unbind
-        puts "Close tunnel connection"
+        ReverseTunnel.logger.info "Close tunnel connection #{token}"
         tunnel.connection = nil if tunnel
       end
 
@@ -202,13 +202,13 @@ module ReverseTunnel
       end
 
       def post_init
-        puts "New local connection"
+        ReverseTunnel.logger.debug "New local connection"
         tunnel.local_connections << self
         tunnel.open_session(session_id)
       end
 
       def receive_data(data)
-        puts "Received data in local #{session_id}"
+        ReverseTunnel.logger.debug "Received data in local #{session_id}"
         tunnel.send_data session_id, data
       end
 
@@ -217,7 +217,7 @@ module ReverseTunnel
       end
 
       def unbind
-        puts "Close local connection"
+        ReverseTunnel.logger.debug "Close local connection"
         tunnel.local_connections.delete self
       end
 

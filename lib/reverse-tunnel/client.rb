@@ -24,6 +24,7 @@ module ReverseTunnel
       end
 
       def start
+        ReverseTunnel.logger.info "Connect to #{host}:#{port}"
         EventMachine.connect host, port, TunnelConnection, self
       end
 
@@ -38,7 +39,7 @@ module ReverseTunnel
 
       def send_data(session_id, data)
         if connection
-          puts "Send data to local connection #{session_id}"
+          ReverseTunnel.logger.debug "Send data to local connection #{session_id}"
           connection.send_data Message::Data.new(session_id,data).pack
         end
       end
@@ -50,7 +51,7 @@ module ReverseTunnel
       def receive_data(session_id, data)
         local_connection = local_connections.find(session_id)
         if local_connection
-          puts "Send data to local connection #{session_id}"
+          ReverseTunnel.logger.debug "Send data to local connection #{session_id}"
           local_connection.send_data data
         else
           local_connections.bufferize session_id, data
@@ -74,7 +75,7 @@ module ReverseTunnel
         connections << connection
 
         session_id = connection.session_id
-        puts "Clear buffer for #{session_id}"
+        ReverseTunnel.logger.debug "Clear buffer for #{session_id}"
 
         (buffers.delete(session_id) or []).each do |data|
           connection.send_data data
@@ -87,7 +88,7 @@ module ReverseTunnel
       end
 
       def bufferize(session_id, data)
-        puts "Push buffer for #{session_id}"
+        ReverseTunnel.logger.debug "Push buffer for #{session_id}"
         buffers[session_id] << data
       end
 
@@ -109,7 +110,7 @@ module ReverseTunnel
       end
 
       def post_init
-        puts "New tunnel connection"
+        ReverseTunnel.logger.debug "New tunnel connection"
         tunnel.connection = self
         tunnel.open
       end
@@ -119,11 +120,11 @@ module ReverseTunnel
       end
 
       def receive_data(data)
-        puts "Received data '#{data.unpack('H*').join}'"
+        ReverseTunnel.logger.debug "Received data '#{data.unpack('H*').join}'"
         message_unpacker.feed data
 
         message_unpacker.each do |message|
-          puts "Received message in tunnel #{message.inspect}"
+          ReverseTunnel.logger.debug "Received message in tunnel #{message.inspect}"
 
           if message.data?
             tunnel.receive_data message.session_id, message.data
@@ -134,7 +135,7 @@ module ReverseTunnel
       end
 
       def unbind
-        puts "Close tunnel connection"
+        ReverseTunnel.logger.debug "Close tunnel connection"
         tunnel.connection = nil
       end
 
@@ -148,22 +149,22 @@ module ReverseTunnel
       end
 
       def post_init
-        puts "New local connection"
+        ReverseTunnel.logger.debug "New local connection"
         tunnel.local_connections << self
       end
 
       def receive_data(data)
-        puts "Received data in local connection #{session_id}"
+        ReverseTunnel.logger.debug "Received data in local connection #{session_id}"
         tunnel.send_data session_id, data
       end
 
       def unbind
-        puts "Close local connection #{session_id}"
+        ReverseTunnel.logger.debug "Close local connection #{session_id}"
         tunnel.local_connections.delete self
       end
 
       def send_data(data)
-        puts "Send data '#{data.unpack('H*')}'"
+        ReverseTunnel.logger.debug "Send data '#{data.unpack('H*').join}'"
         super
       end
 
