@@ -41,11 +41,9 @@ module ReverseTunnel
             response.content = server.tunnels.to_json
             response.send_response
           elsif @http_request_method == "POST"
-            params = JSON.parse(@http_post_content)
-            tunnel = Tunnel.new(params["token"], params["local_port"])
+            params = @http_post_content ? JSON.parse(@http_post_content) : {}
 
-            ReverseTunnel.logger.debug "Create tunnel #{tunnel.inspect}"
-            server.tunnels << tunnel
+            tunnel = server.tunnels.create params
 
             response = EM::DelegatedHttpResponse.new(self)
             response.status = 200
@@ -85,6 +83,7 @@ module ReverseTunnel
       attr_accessor :local_server
 
       def close
+        ReverseTunnel.logger.info "Close tunnel connection #{token}"
         EventMachine.stop_server local_server
       end
 
@@ -165,7 +164,7 @@ module ReverseTunnel
       attr_accessor :tunnel
 
       def open_tunnel(token)
-        self.tunnel = server.tunnels.find { |t| t.token == token }
+        self.tunnel = server.tunnels.find token
         if tunnel
           ReverseTunnel.logger.info "Open tunnel #{token}"
           tunnel.connection = self
@@ -176,7 +175,6 @@ module ReverseTunnel
       end
 
       def unbind
-        ReverseTunnel.logger.info "Close tunnel connection #{token}"
         tunnel.connection = nil if tunnel
       end
 
@@ -223,15 +221,63 @@ module ReverseTunnel
 
     end
 
-    attr_accessor :tunnels
+    def tunnels
+      @tunnels ||= Tunnels.new
+    end
 
-    def initialize
-      @tunnels = []
+    class Tunnels
+
+      def tunnels
+        @tunnels ||= []
+      end
+
+      attr_accessor :local_port_range
+      def local_port_range
+        @local_port_range ||= 10000..10200
+      end
+
+      def find(token)
+        tunnels.find { |t| t.token == token }
+      end
+
+      def create(attributes = {})
+        attributes = default_attributes.merge(attributes)
+        Tunnel.new(attributes["token"], attributes["local_port"]).tap do |tunnel|
+          ReverseTunnel.logger.info "Create tunnel #{tunnel.inspect}"
+          tunnels << tunnel
+        end
+      end
+
+      def default_attributes
+        { "token" => create_token, "local_port" => available_local_port }
+      end
+
+      def create_token
+        rand(10e32).to_s(16).ljust(28, '0').upcase
+      end
+
+      def used_local_ports
+        tunnels.map(&:local_port)
+      end
+
+      def available_local_ports
+        local_port_range.to_a - used_local_ports
+      end
+
+      def available_local_port
+        available_local_ports.tap do |ports|
+          ports.shuffle if respond_to?(:shuffle)
+        end.first
+      end
+
+      def to_json(*args)
+        tunnels.to_json(*args)
+      end
+
     end
 
     def start
-      tunnel = Tunnel.new("6B833D3F561369156820B4240C7C2657", 10000)
-      tunnels << tunnel
+      tunnels.create "token" => "6B833D3F561369156820B4240C7C2657", "local_port" => 10000
 
       EventMachine.run do
         public_host, public_port = "0.0.0.0", 4893
