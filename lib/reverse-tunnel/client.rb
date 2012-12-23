@@ -2,13 +2,30 @@ module ReverseTunnel
   class Client
     class Tunnel
 
+      attr_accessor :host, :port
       attr_accessor :token, :local_port
 
-      def initialize(token, local_port)
-        @token, @local_port = token, local_port
+      def initialize(attributes = {})
+        attributes.each { |k,v| send "#{k}=", v }
       end
 
       attr_accessor :connection
+
+      def connection=(connection)
+        if connection.nil?
+          EventMachine.add_timer(30) do  
+            start
+          end
+
+          local_connections.close_all
+        end
+
+        @connection = connection
+      end
+
+      def start
+        EventMachine.connect host, port, TunnelConnection, self
+      end
 
       def open
         connection.send_data Message::OpenTunnel.new(token).pack
@@ -76,6 +93,10 @@ module ReverseTunnel
 
       def delete(connection)
         connections.delete connection
+      end
+
+      def close_all
+        connections.each(&:close_connection)
       end
 
     end
@@ -150,19 +171,20 @@ module ReverseTunnel
 
     def start
       EventMachine.run do
-        tunnel_host, tunnel_port = "localhost", 4893
-        EventMachine.connect tunnel_host, tunnel_port, TunnelConnection, tunnel
+        tunnel.start
       end
     end
 
     def tunnel
-      @tunnel ||= Tunnel.new(token, local_port)
+      @tunnel ||= Tunnel.new(:token => token, :local_port => local_port, :host => host, :port => port)
     end
 
     attr_accessor :token, :local_port
+    attr_accessor :host, :port
 
     def initialize(token, local_port = 22)
       @token, @local_port = token, local_port
+      @host, @port = "127.0.0.1", 4893
     end
 
   end
