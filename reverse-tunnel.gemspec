@@ -21,6 +21,8 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency "msgpack"
   gem.add_runtime_dependency "eventmachine_httpserver"
   gem.add_runtime_dependency "json"
+  gem.add_runtime_dependency "trollop"
+  gem.add_runtime_dependency "SyslogLogger"
 
   gem.add_development_dependency "simplecov"
   gem.add_development_dependency "rspec"

@@ -177,15 +177,22 @@ module ReverseTunnel
     end
 
     def tunnel
-      @tunnel ||= Tunnel.new(:token => token, :local_port => local_port, :host => host, :port => port)
+      @tunnel ||= Tunnel.new(:token => token, :local_port => local_port, :host => server_host, :port => server_port)
     end
 
     attr_accessor :token, :local_port
-    attr_accessor :host, :port
+    attr_accessor :server_host, :server_port
 
-    def initialize(token, local_port = 22)
+    def server_port
+      @server_port ||= 4893
+    end
+
+    def local_port
+      @local_port ||= 22
+    end
+
+    def initialize
       @token, @local_port = token, local_port
-      @host, @port = "127.0.0.1", 4893
     end
 
   end

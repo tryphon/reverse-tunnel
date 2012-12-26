@@ -60,12 +60,16 @@ module ReverseTunnel
 
     end
 
-
     class Tunnel
-      attr_accessor :token, :local_port
 
-      def initialize(token, local_port)
-        @token, @local_port = token, local_port
+      attr_accessor :token, :local_port, :local_host
+
+      def initialize(attributes)
+        attributes.each { |k,v| send "#{k}=", v }
+      end
+
+      def local_host
+        @local_host ||= "127.0.0.1"
       end
 
       attr_accessor :connection
@@ -88,8 +92,7 @@ module ReverseTunnel
       end
 
       def open
-        ReverseTunnel.logger.info "Listen on #{local_port} for #{token}"
-        local_host = "0.0.0.0"
+        ReverseTunnel.logger.info "Listen on #{local_host}:#{local_port} for #{token}"
         self.local_server = EventMachine.start_server local_host, local_port, LocalConnection, self
       end
 
@@ -225,13 +228,22 @@ module ReverseTunnel
       @tunnels ||= Tunnels.new
     end
 
+    def local_host=(local_host)
+      tunnels.local_host = local_host
+    end
+
+    def local_port_range=(local_port_range)
+      tunnels.local_port_range = local_port_range
+    end
+
     class Tunnels
 
       def tunnels
         @tunnels ||= []
       end
 
-      attr_accessor :local_port_range
+      attr_accessor :local_host, :local_port_range
+
       def local_port_range
         @local_port_range ||= 10000..10200
       end
@@ -241,8 +253,8 @@ module ReverseTunnel
       end
 
       def create(attributes = {})
-        attributes = default_attributes.merge(attributes)
-        Tunnel.new(attributes["token"], attributes["local_port"]).tap do |tunnel|
+        attributes = default_attributes.merge(attributes).merge(:local_host => local_host)
+        Tunnel.new(attributes).tap do |tunnel|
           ReverseTunnel.logger.info "Create tunnel #{tunnel.inspect}"
           tunnels << tunnel
         end
@@ -280,12 +292,40 @@ module ReverseTunnel
       tunnels.create "token" => "6B833D3F561369156820B4240C7C2657", "local_port" => 10000
 
       EventMachine.run do
-        public_host, public_port = "0.0.0.0", 4893
-        EventMachine.start_server public_host, public_port, TunnelConnection, self
-
-        api_host, api_port = "0.0.0.0", 5000
-        EventMachine.start_server api_host, api_port, ApiServer, self
+        start_server
+        start_api
       end
     end
+
+    attr_accessor :server_host, :server_port
+
+    def server_host
+      @server_host ||= "0.0.0.0"
+    end
+
+    def server_port
+      @server_port ||= 4893
+    end
+
+    def start_server
+      ReverseTunnel.logger.info "Wait tunnel connections on #{server_host}:#{server_port}"
+      EventMachine.start_server server_host, server_port, TunnelConnection, self
+    end
+
+    attr_accessor :api_host, :api_port
+
+    def api_host
+      @api_host ||= "127.0.0.1"
+    end
+
+    def api_port
+      @api_port ||= 4894
+    end
+
+    def start_api
+      ReverseTunnel.logger.info "Wait api requests #{api_host}:#{api_port}"
+      EventMachine.start_server api_host, api_port, ApiServer, self
+    end
+
   end
 end
