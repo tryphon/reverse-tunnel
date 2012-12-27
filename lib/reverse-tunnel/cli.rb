@@ -95,12 +95,17 @@ EOS
       def parser
         @parser ||= Trollop::Parser.new do
           opt :server, "Host and port of ReverseTunnel server", :type => :string
+          opt :api, "Host and port of status HTTP api", :type => :string
           opt :"local-port", "Port to forward incoming connection", :default => 22
         end
       end
 
       def token
         arguments.first
+      end
+
+      def api=(api)
+        self.api_host, self.api_port = parse_host_port(api) if api
       end
 
       def configure(object = self)

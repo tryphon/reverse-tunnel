@@ -1,5 +1,45 @@
 module ReverseTunnel
   class Client
+
+    class ApiServer < EM::Connection
+      include EM::HttpServer
+
+      attr_accessor :tunnel
+
+      def initialize(tunnel)
+        @tunnel = tunnel
+      end
+      
+      def post_init
+        super
+        no_environment_strings
+      end
+
+      def process_http_request
+        ReverseTunnel.logger.debug "Process http request #{@http_request_uri}"
+
+        response = EM::DelegatedHttpResponse.new(self)
+        response.status = 200
+        response.content_type 'application/json'
+
+        begin
+          if @http_request_uri =~ %r{^/status(.json)?$} and @http_request_method == "GET"
+            response.content = tunnel.to_json
+          end
+        rescue => e
+          ReverseTunnel.logger.error "Error in http request processing: #{e}"
+          response.status = 500
+        end
+
+        if response.content.nil?
+          response.status = 404
+        end
+
+        response.send_response
+      end
+      
+    end
+
     class Tunnel
 
       attr_accessor :host, :port
@@ -57,6 +97,18 @@ module ReverseTunnel
           local_connections.bufferize session_id, data
         end
       end
+
+      def to_json
+        { :token => token, 
+          :local_port => local_port, 
+          :server_host => host, 
+          :server_port => port,
+          :local_connections => local_connections.as_json
+        }.tap do |attributes|
+          attributes[:connection] = connection.as_json if connection
+        end.to_json
+      end
+
     end
 
     class LocalConnections
@@ -100,10 +152,14 @@ module ReverseTunnel
         connections.each(&:close_connection)
       end
 
+      def as_json
+        connections.map(&:as_json)
+      end
+
     end
 
     class TunnelConnection < EventMachine::Connection
-      attr_accessor :tunnel
+      attr_accessor :tunnel, :created_at
 
       def initialize(tunnel)
         @tunnel = tunnel
@@ -111,12 +167,18 @@ module ReverseTunnel
 
       def post_init
         ReverseTunnel.logger.debug "New tunnel connection"
+        self.created_at = Time.now
+
         tunnel.connection = self
         tunnel.open
       end
 
       def message_unpacker
         @message_unpacker ||= Message::Unpacker.new
+      end
+
+      def as_json
+        { :created_at => created_at }
       end
 
       def receive_data(data)
@@ -144,17 +206,22 @@ module ReverseTunnel
     class LocalConnection < EventMachine::Connection
       attr_accessor :tunnel, :session_id
 
+      attr_reader :created_at, :received_size, :send_size
+
       def initialize(tunnel, session_id)
         @tunnel, @session_id = tunnel, session_id
+        @received_size = @send_size = 0
       end
 
       def post_init
         ReverseTunnel.logger.debug "New local connection"
+        @created_at = Time.now
         tunnel.local_connections << self
       end
 
       def receive_data(data)
         ReverseTunnel.logger.debug "Received data in local connection #{session_id}"
+        @received_size += data.size
         tunnel.send_data session_id, data
       end
 
@@ -165,7 +232,12 @@ module ReverseTunnel
 
       def send_data(data)
         ReverseTunnel.logger.debug "Send data '#{data.unpack('H*').join}'"
+        @send_size += data.size
         super
+      end
+
+      def as_json
+        { :session_id => session_id, :created_at => created_at, :received_size => received_size, :send_size => send_size }
       end
 
     end
@@ -173,6 +245,14 @@ module ReverseTunnel
     def start
       EventMachine.run do
         tunnel.start
+        start_api
+      end
+    end
+
+    def start_api
+      if api_host
+        ReverseTunnel.logger.info "Wait api requests #{api_host}:#{api_port}"
+        EventMachine.start_server api_host, api_port, ApiServer, tunnel
       end
     end
 
@@ -182,17 +262,18 @@ module ReverseTunnel
 
     attr_accessor :token, :local_port
     attr_accessor :server_host, :server_port
+    attr_accessor :api_host, :api_port
 
     def server_port
       @server_port ||= 4893
     end
 
-    def local_port
-      @local_port ||= 22
+    def api_port
+      @api_port ||= 4895
     end
 
-    def initialize
-      @token, @local_port = token, local_port
+    def local_port
+      @local_port ||= 22
     end
 
   end

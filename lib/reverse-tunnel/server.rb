@@ -236,7 +236,7 @@ module ReverseTunnel
       end
 
       def to_json(*args)
-        { :peer => peer, :created_at => created_at }
+        { :peer => peer, :created_at => created_at }.json
       end
 
     end

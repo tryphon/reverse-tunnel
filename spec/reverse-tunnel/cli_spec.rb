@@ -69,6 +69,17 @@ end
 
 describe ReverseTunnel::CLI::Client do
 
+  describe "#api=" do
+    
+    it "should parse ip and port" do
+      subject.should_receive(:api_host=).with("host")
+      subject.should_receive(:api_port=).with(4895)
+      
+      subject.api = "host:4895"
+    end
+
+  end
+
   describe "#token" do
 
     it "should use first argument" do

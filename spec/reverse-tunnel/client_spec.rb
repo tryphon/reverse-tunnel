@@ -26,6 +26,22 @@ describe ReverseTunnel::Client do
 
   end
 
+  describe "#api_host" do
+    
+    it "should be nil by default" do
+      subject.api_host.should be_nil
+    end
+
+  end
+
+  describe "#api_port" do
+    
+    it "should be 4895 by default" do
+      subject.api_port.should == 4895
+    end
+
+  end
+
   describe "#tunnel" do
     it "should use server_host" do
       subject.server_host = "localhost"
@@ -43,5 +59,21 @@ describe ReverseTunnel::Client do
     end
   end
 
+  describe "#start_api" do
+    it "should use api_host and api_port" do
+      subject.api_host = "localhost"
+      subject.api_port = 123
+
+      EventMachine.should_receive(:start_server).with("localhost", 123, anything, anything)
+      subject.start_api
+    end
+
+    it "should not start api if api_host is not defined" do
+      subject.api_host = nil
+
+      EventMachine.should_not_receive(:start_server)
+      subject.start_api
+    end
+  end
 
 end
