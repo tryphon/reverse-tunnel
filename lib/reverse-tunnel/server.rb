@@ -145,7 +145,13 @@ module ReverseTunnel
       def post_init
         ReverseTunnel.logger.info "New tunnel connection from #{peer}"
         self.created_at = Time.now
-        # TODO add timeout if tunnel isn't opened
+
+        EventMachine.add_timer(10) do  
+          unless open?
+            ReverseTunnel.logger.info "Force close of unopened tunnel connection from #{peer}"
+            close_connection 
+          end
+        end
       end
 
       def message_unpacker
@@ -165,6 +171,10 @@ module ReverseTunnel
       end
 
       attr_accessor :tunnel
+
+      def open?
+        !!tunnel
+      end
 
       def open_tunnel(token)
         self.tunnel = server.tunnels.find token
