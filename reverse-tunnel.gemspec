@@ -6,11 +6,11 @@ require 'reverse-tunnel/version'
 Gem::Specification.new do |gem|
   gem.name          = "reverse-tunnel"
   gem.version       = ReverseTunnel::VERSION
-  gem.authors       = ["Alban Peignier"]
-  gem.email         = ["alban@tryphon.eu"]
-  gem.description   = %q{TODO: Write a gem description}
-  gem.summary       = %q{TODO: Write a gem summary}
-  gem.homepage      = ""
+  gem.authors       = ["Alban Peignier", "Florent Peyraud"]
+  gem.email         = ["alban@tryphon.eu", "florent@tryphon.eu"]
+  gem.description   = %q{Create easily a tunnel to forward connection (like a ssh) to the client host}
+  gem.summary       = %q{Forward a tcp connection to client host}
+  gem.homepage      = "http://projects.tryphon.eu/projects/reverse-tunnel"
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
