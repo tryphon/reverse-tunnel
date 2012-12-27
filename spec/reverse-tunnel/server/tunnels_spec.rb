@@ -39,4 +39,28 @@ describe ReverseTunnel::Server::Tunnels do
 
   end
 
+  describe "#destroy" do
+
+    let(:tunnel) { subject.create }
+    
+    it "should remove tunnel" do
+      subject.destroy tunnel.token
+      subject.find(tunnel.token).should be_nil
+    end
+
+    it "should close tunnel" do
+      tunnel.should_receive(:close)
+      subject.destroy tunnel.token
+    end
+
+    it "should return removed tunnel" do
+      subject.destroy(tunnel.token).should == tunnel
+    end
+
+    it "should return nil if no tunnel is found" do
+      subject.destroy("dummy").should be_nil
+    end
+
+  end
+
 end

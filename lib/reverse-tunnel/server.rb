@@ -33,31 +33,49 @@ module ReverseTunnel
 
         ReverseTunnel.logger.debug "Process http request #{@http_request_uri}"
 
-        if @http_request_uri =~ %r{^/tunnels(.json)?$}
-          if @http_request_method == "GET"
-            response = EM::DelegatedHttpResponse.new(self)
-            response.status = 200
-            response.content_type 'application/json'
-            response.content = server.tunnels.to_json
-            response.send_response
-          elsif @http_request_method == "POST"
-            params = @http_post_content ? JSON.parse(@http_post_content) : {}
+        response = EM::DelegatedHttpResponse.new(self)
+        response.status = 200
+        response.content_type 'application/json'
 
-            tunnel = server.tunnels.create params
+        begin
 
-            response = EM::DelegatedHttpResponse.new(self)
-            response.status = 200
-            response.content_type 'application/json'
-            response.content = tunnel.to_json
-            response.send_response
+          case @http_request_uri 
+          when %r{^/tunnels(.json)?$}
+            case @http_request_method
+            when "GET"
+              response.content = server.tunnels.to_json
+            when "POST"
+              params = @http_post_content ? JSON.parse(@http_post_content) : {}
+              tunnel = server.tunnels.create params
+              response.content = tunnel.to_json
+            end
+          when %r{^/tunnels/([0-9A-F]+)(.json)?$}
+            tunnel_id = $1
+            tunnel = server.tunnels.find(tunnel_id)
+
+            if tunnel
+              case @http_request_method
+              when "GET"
+                response.content = tunnel.to_json
+              when "DELETE"
+                tunnel = server.tunnels.destroy(tunnel_id)
+                response.content = tunnel.to_json
+              end
+            end
+          else 
           end
-        else 
-          response = EM::DelegatedHttpResponse.new(self)
-          response.status = 404
-          response.send_response
+        rescue => e
+          ReverseTunnel.logger.error "Error in http request processing: #{e}"
+          response.status = 500
         end
-      end
 
+        if response.content.nil?
+          response.status = 404
+        end
+
+        response.send_response
+      end
+      
     end
 
     class Tunnel
@@ -87,8 +105,17 @@ module ReverseTunnel
       attr_accessor :local_server
 
       def close
-        ReverseTunnel.logger.info "Close tunnel connection #{token}"
-        EventMachine.stop_server local_server
+        if local_server
+          ReverseTunnel.logger.info "Close local connections on #{local_port}"
+          EventMachine.stop_server local_server
+          self.local_server = nil
+        end
+
+        if connection
+          ReverseTunnel.logger.info "Close tunnel connection #{token}"
+          connection.close_connection 
+          @connection = nil
+        end
       end
 
       def open
@@ -147,7 +174,7 @@ module ReverseTunnel
         self.created_at = Time.now
 
         EventMachine.add_timer(10) do  
-          unless open?
+          unless open? or closed?
             ReverseTunnel.logger.info "Force close of unopened tunnel connection from #{peer}"
             close_connection 
           end
@@ -174,6 +201,15 @@ module ReverseTunnel
 
       def open?
         !!tunnel
+      end
+
+      def closed?
+        @closed ||= false
+      end
+
+      def close_connection(after_writing = false)
+        super
+        @closed = true
       end
 
       def open_tunnel(token)
@@ -267,6 +303,15 @@ module ReverseTunnel
         Tunnel.new(attributes).tap do |tunnel|
           ReverseTunnel.logger.info "Create tunnel #{tunnel.inspect}"
           tunnels << tunnel
+        end
+      end
+
+      def destroy(token)
+        tunnel = find(token)
+        if tunnel
+          tunnel.close
+          tunnels.delete tunnel
+          tunnel
         end
       end
 
