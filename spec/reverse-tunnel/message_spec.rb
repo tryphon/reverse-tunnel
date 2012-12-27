@@ -42,3 +42,14 @@ describe Message::OpenTunnel do
   end
 end
 
+describe Message::Ping do
+  its(:type) { should == :ping }
+
+  it { should be_ping }
+
+  it "should have the same sequence_number after pack/unpack" do
+    subject.sequence_number = 123
+    Message.unpack(subject.pack).sequence_number.should == subject.sequence_number
+  end
+end
+

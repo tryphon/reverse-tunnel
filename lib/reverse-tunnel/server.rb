@@ -93,13 +93,20 @@ module ReverseTunnel
       attr_accessor :connection
 
       def connection=(connection)
+        if @connection and @connection != connection
+          @connection.close_connection 
+          local_connections.each(&:close_connection)
+        end
+
         @connection = connection
 
-        if connection
-          open 
-        else
-          close
+        if @connection
+          open
         end
+      end
+
+      def connection_closed(connection)
+        self.connection = nil if self.connection == connection
       end
 
       attr_accessor :local_server
@@ -113,14 +120,20 @@ module ReverseTunnel
 
         if connection
           ReverseTunnel.logger.info "Close tunnel connection #{token}"
-          connection.close_connection 
-          @connection = nil
+          self.connection.tap do |connection|
+            @connection = nil
+            connection.close_connection 
+          end
         end
       end
 
       def open
-        ReverseTunnel.logger.info "Listen on #{local_host}:#{local_port} for #{token}"
-        self.local_server = EventMachine.start_server local_host, local_port, LocalConnection, self
+        unless local_server
+          ReverseTunnel.logger.info "Listen on #{local_host}:#{local_port} for #{token}"
+          self.local_server = EventMachine.start_server local_host, local_port, LocalConnection, self
+        end
+      rescue => e
+        ReverseTunnel.logger.error "Can't listen on #{local_host}:#{local_port} for #{token} : #{e}"
       end
 
       def open_session(session_id)
@@ -128,6 +141,11 @@ module ReverseTunnel
           ReverseTunnel.logger.debug "Send open session #{session_id}"
           connection.send_data Message::OpenSession.new(session_id).pack
         end
+      end
+
+      def ping_received(ping)
+        ReverseTunnel.logger.debug "Receive ping #{token}/#{ping.sequence_number}"
+        connection.send_data Message::Ping.new(ping.sequence_number).pack
       end
 
       def send_data(session_id, data)
@@ -193,6 +211,8 @@ module ReverseTunnel
             tunnel.receive_data message.session_id, message.data
           elsif message.open_tunnel?
             open_tunnel message.token
+          elsif message.ping?
+            tunnel.ping_received message
           end
         end
       end
@@ -224,7 +244,7 @@ module ReverseTunnel
       end
 
       def unbind
-        tunnel.connection = nil if tunnel
+        tunnel.connection_closed self if tunnel
       end
 
       def peer

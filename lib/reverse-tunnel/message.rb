@@ -8,7 +8,7 @@ module ReverseTunnel
       self.class.type
     end
 
-    @@types = [:open_tunnel, :open_session, :data]
+    @@types = [:open_tunnel, :open_session, :data, :ping]
     def self.types
       @@types
     end
@@ -116,6 +116,22 @@ module ReverseTunnel
 
       def load(payload)
         self.token = payload.first
+      end
+    end
+
+    class Ping < Message
+      attr_accessor :sequence_number
+
+      def initialize(sequence_number = nil)
+        self.sequence_number = sequence_number
+      end
+
+      def payload
+        [sequence_number]
+      end
+
+      def load(payload)
+        self.sequence_number = payload.first
       end
     end
 

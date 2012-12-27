@@ -58,18 +58,38 @@ module ReverseTunnel
           end
 
           local_connections.close_all
+          @hearbeat.cancel
+        else
+          @hearbeat = EventMachine.add_periodic_timer(5) do
+            ping
+          end
         end
 
         @connection = connection
       end
 
       def start
-        ReverseTunnel.logger.info "Connect to #{host}:#{port}"
+        ReverseTunnel.logger.debug "Connect to #{host}:#{port}"
         EventMachine.connect host, port, TunnelConnection, self
       end
 
       def open
         connection.send_data Message::OpenTunnel.new(token).pack
+      end
+
+      attr_accessor :sequence_number
+      def sequence_number
+        @sequence_number ||= 0
+      end
+
+      def ping
+        next_number = self.sequence_number += 1
+        ReverseTunnel.logger.debug "Send ping #{next_number}"
+        connection.send_data Message::Ping.new(next_number).pack if connection
+      end
+
+      def ping_received(ping)
+        ReverseTunnel.logger.info "Receive ping #{ping.sequence_number}"
       end
 
       def open_session(session_id)
@@ -161,6 +181,8 @@ module ReverseTunnel
     class TunnelConnection < EventMachine::Connection
       attr_accessor :tunnel, :created_at
 
+      attr_reader :hearbeat
+
       def initialize(tunnel)
         @tunnel = tunnel
       end
@@ -192,6 +214,8 @@ module ReverseTunnel
             tunnel.receive_data message.session_id, message.data
           elsif message.open_session?
             tunnel.open_session message.session_id
+          elsif message.ping?
+            tunnel.ping_received message
           end
         end
       end
