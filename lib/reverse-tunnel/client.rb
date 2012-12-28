@@ -16,7 +16,7 @@ module ReverseTunnel
       end
 
       def process_http_request
-        ReverseTunnel.logger.debug "Process http request #{@http_request_uri}"
+        ReverseTunnel.logger.debug { "Process http request #{@http_request_uri}" }
 
         response = EM::DelegatedHttpResponse.new(self)
         response.status = 200
@@ -69,7 +69,7 @@ module ReverseTunnel
       end
 
       def start
-        ReverseTunnel.logger.debug "Connect to #{host}:#{port}"
+        ReverseTunnel.logger.debug { "Connect to #{host}:#{port}" }
         EventMachine.connect host, port, TunnelConnection, self
       end
 
@@ -84,7 +84,7 @@ module ReverseTunnel
 
       def ping
         next_number = self.sequence_number += 1
-        ReverseTunnel.logger.debug "Send ping #{next_number}"
+        ReverseTunnel.logger.debug { "Send ping #{next_number}" } 
         connection.send_data Message::Ping.new(next_number).pack if connection
       end
 
@@ -99,7 +99,7 @@ module ReverseTunnel
 
       def send_data(session_id, data)
         if connection
-          ReverseTunnel.logger.debug "Send data to local connection #{session_id}"
+          ReverseTunnel.logger.debug { "Send data to local connection #{session_id}" }
           connection.send_data Message::Data.new(session_id,data).pack
         end
       end
@@ -111,7 +111,7 @@ module ReverseTunnel
       def receive_data(session_id, data)
         local_connection = local_connections.find(session_id)
         if local_connection
-          ReverseTunnel.logger.debug "Send data to local connection #{session_id}"
+          ReverseTunnel.logger.debug { "Send data to local connection #{session_id}" }
           local_connection.send_data data
         else
           local_connections.bufferize session_id, data
@@ -147,7 +147,7 @@ module ReverseTunnel
         connections << connection
 
         session_id = connection.session_id
-        ReverseTunnel.logger.debug "Clear buffer for #{session_id}"
+        ReverseTunnel.logger.debug { "Clear buffer for #{session_id}" }
 
         (buffers.delete(session_id) or []).each do |data|
           connection.send_data data
@@ -160,7 +160,7 @@ module ReverseTunnel
       end
 
       def bufferize(session_id, data)
-        ReverseTunnel.logger.debug "Push buffer for #{session_id}"
+        ReverseTunnel.logger.debug { "Push buffer for #{session_id}" }
         buffers[session_id] << data
       end
 
@@ -188,7 +188,7 @@ module ReverseTunnel
       end
 
       def post_init
-        ReverseTunnel.logger.debug "New tunnel connection"
+        ReverseTunnel.logger.debug { "New tunnel connection" }
         self.created_at = Time.now
 
         tunnel.connection = self
@@ -204,11 +204,11 @@ module ReverseTunnel
       end
 
       def receive_data(data)
-        ReverseTunnel.logger.debug "Received data '#{data.unpack('H*').join}'"
+        ReverseTunnel.logger.debug { "Received data '#{data.unpack('H*').join}'" }
         message_unpacker.feed data
 
         message_unpacker.each do |message|
-          ReverseTunnel.logger.debug "Received message in tunnel #{message.inspect}"
+          ReverseTunnel.logger.debug { "Received message in tunnel #{message.inspect}" }
 
           if message.data?
             tunnel.receive_data message.session_id, message.data
@@ -221,7 +221,7 @@ module ReverseTunnel
       end
 
       def unbind
-        ReverseTunnel.logger.debug "Close tunnel connection"
+        ReverseTunnel.logger.debug { "Close tunnel connection" }
         tunnel.connection = nil
       end
 
@@ -238,24 +238,24 @@ module ReverseTunnel
       end
 
       def post_init
-        ReverseTunnel.logger.debug "New local connection"
+        ReverseTunnel.logger.debug { "New local connection" }
         @created_at = Time.now
         tunnel.local_connections << self
       end
 
       def receive_data(data)
-        ReverseTunnel.logger.debug "Received data in local connection #{session_id}"
+        ReverseTunnel.logger.debug { "Received data in local connection #{session_id}" }
         @received_size += data.size
         tunnel.send_data session_id, data
       end
 
       def unbind
-        ReverseTunnel.logger.debug "Close local connection #{session_id}"
+        ReverseTunnel.logger.debug { "Close local connection #{session_id}" }
         tunnel.local_connections.delete self
       end
 
       def send_data(data)
-        ReverseTunnel.logger.debug "Send data '#{data.unpack('H*').join}'"
+        ReverseTunnel.logger.debug { "Send data '#{data.unpack('H*').join}'" }
         @send_size += data.size
         super
       end
