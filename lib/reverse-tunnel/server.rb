@@ -364,8 +364,6 @@ module ReverseTunnel
     end
 
     def start
-      tunnels.create "token" => "6B833D3F561369156820B4240C7C2657", "local_port" => 10000
-
       EventMachine.run do
         start_server
         start_api
