@@ -60,7 +60,7 @@ module ReverseTunnel
           local_connections.close_all
           @hearbeat.cancel
         else
-          @hearbeat = EventMachine.add_periodic_timer(5) do
+          @hearbeat = EventMachine.add_periodic_timer(30) do
             ping
           end
         end
