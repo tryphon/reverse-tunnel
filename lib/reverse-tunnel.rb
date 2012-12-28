@@ -27,7 +27,13 @@ end
 require "eventmachine"
 require "msgpack"
 require "trollop"
-require "syslog/logger"
+
+begin
+  require "syslog/logger"
+rescue LoadError
+  require 'syslog_logger'
+  Syslog::Logger = SyslogLogger
+end
 
 require "reverse-tunnel/message"
 require "reverse-tunnel/server"
