@@ -174,7 +174,7 @@ module ReverseTunnel
 
       def to_json(*args)
         { :token => token, :local_port => local_port }.tap do |attributes|
-          attributes[:connection] = connection.to_json if connection
+          attributes[:connection] = connection.as_json if connection
         end.to_json(*args)
       end
 
@@ -255,8 +255,8 @@ module ReverseTunnel
           end
       end
 
-      def to_json(*args)
-        { :peer => peer, :created_at => created_at }.json
+      def as_json(*args)
+        { :peer => peer, :created_at => created_at }
       end
 
     end
